@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="bg-slate-950 text-white antialiased min-h-screen">
+      <body className="bg-slate-950 text-white antialiased h-screen flex flex-col overflow-hidden">
         <header className="border-b border-slate-800 px-6 py-4 flex items-center gap-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center font-bold text-sm select-none">
@@ -34,7 +34,7 @@ export default function RootLayout({
             </span>
           </div>
         </header>
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 min-h-0">{children}</main>
       </body>
     </html>
   )
