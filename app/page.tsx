@@ -23,7 +23,7 @@ export default function HomePage() {
     label: string
   } | null>(null)
   const [recommendations, setRecommendations] = useState<ParkingRecommendation[]>(
-    []
+  []
   )
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRec, setSelectedRec] = useState<ParkingRecommendation | null>(null)
@@ -39,7 +39,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex flex-col lg:flex-row h-full">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-65px)]">
       {/* Left panel: search + results */}
       <div className="w-full lg:w-[420px] xl:w-[480px] flex flex-col border-r border-slate-800 overflow-hidden shrink-0">
         <div className="p-4 border-b border-slate-800">
@@ -60,7 +60,7 @@ export default function HomePage() {
           {!isLoading && recommendations.length === 0 && !selectedLocation && (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
               <div className="w-16 h-16 rounded-2xl bg-slate-800 flex items-center justify-center text-3xl mb-4">
-                P
+                🅿️
               </div>
               <h2 className="text-slate-200 font-semibold mb-2">Plan Your Parking</h2>
               <p className="text-slate-400 text-sm leading-relaxed">
@@ -72,7 +72,7 @@ export default function HomePage() {
 
           {!isLoading && recommendations.length === 0 && selectedLocation && (
             <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-              <div className="text-4xl mb-4">?</div>
+              <div className="text-4xl mb-4">🔍</div>
               <p className="text-slate-400 text-sm">
                 No parking meters found within your walk distance. Try increasing
                 the walk radius.
@@ -101,7 +101,7 @@ export default function HomePage() {
       </div>
 
       {/* Right panel: map */}
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative min-h-[400px] lg:min-h-0">
         <ParkingMap
           destination={selectedLocation}
           recommendations={recommendations}
