@@ -22,14 +22,10 @@ function normalizeTime(raw: string | undefined): string {
   return `${cleaned.slice(0, 2)}:${cleaned.slice(2, 4)}`
 }
 
-// Extract enforcement windows from raw LADOT fields.
-// Fields may be shaped like: mon_am_start, mon_am_end, mon_pm_start, mon_pm_end
-// or sometimes a single range per day. We consolidate to one entry per day.
 function parseDayHours(raw: LadotMeterRaw): DayHours[] {
   const days: DayHours[] = []
 
   for (const dayKey of Object.keys(DAY_NAMES)) {
-    // Try single-range fields first (day_start / day_end)
     const startKey = `${dayKey}_start`
     const endKey = `${dayKey}_end`
     const amStartKey = `${dayKey}_am_start`
@@ -42,7 +38,6 @@ function parseDayHours(raw: LadotMeterRaw): DayHours[] {
     }
   }
 
-  // If no structured fields found, fall back to policyname heuristic
   if (days.length === 0 && raw.policyname) {
     const policy = raw.policyname.toLowerCase()
     const allWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
@@ -78,16 +73,13 @@ function parseDayHours(raw: LadotMeterRaw): DayHours[] {
   return days
 }
 
-// Parse hourly rate from strings like "$1.00", "$1.00-$2.00", "1.00"
 function parseRate(raterange: string | undefined): number {
   if (!raterange) return 1.0
-  // Take the higher end if a range is given
   const matches = raterange.replace(/\$/g, '').split('-').map((s) => parseFloat(s.trim()))
   const valid = matches.filter((n) => !isNaN(n))
   return valid.length > 0 ? Math.max(...valid) : 1.0
 }
 
-// Parse time limit from strings like "2HR", "90 MIN", "1.5"
 function parseTimeLimit(timelimit: string | undefined): number {
   if (!timelimit) return 2
   const upper = timelimit.toUpperCase()
@@ -168,7 +160,6 @@ export async function fetchMetersByRadius(
   lng: number,
   radiusMeters: number
 ): Promise<ParkingMeter[]> {
-  // Convert radius to rough lat/lng bounding box for Socrata query
   const latDelta = radiusMeters / 111320
   const lngDelta = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180))
   const minLat = lat - latDelta
@@ -176,23 +167,21 @@ export async function fetchMetersByRadius(
   const minLng = lng - lngDelta
   const maxLng = lng + lngDelta
 
-  // Try bounding box query using lat/long columns
   let response
   try {
     response = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
       headers: getHeaders(),
       params: {
         $limit: PAGE_SIZE,
-        $where: `lat >= '${minLat}' AND lat <= '${maxLat}' AND long >= '${minLng}' AND long <= '${maxLng}'`,
+        $where: `lat >= ${minLat} AND lat <= ${maxLat} AND long >= ${minLng} AND long <= ${maxLng}`,
       },
     })
   } catch {
-    // Try within_circle as secondary fallback
     response = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
       headers: getHeaders(),
       params: {
         $limit: PAGE_SIZE,
-        $where: `within_circle(location, ${lat}, ${lng}, ${radiusMeters})`,
+        $where: `within_circle(geolocation, ${lat}, ${lng}, ${radiusMeters})`,
       },
     })
   }
@@ -204,26 +193,34 @@ export async function fetchMetersByRadius(
   for (const raw of response.data) {
     const meter = mapRawToMeter(raw)
     if (!meter) continue
-
-    // Deduplicate by space_id
     if (seenIds.has(meter.space_id)) continue
     seenIds.add(meter.space_id)
-
-    // Client-side exact radius filter
     const pt = turf.point([meter.lng, meter.lat])
     const dist = turf.distance(center, pt, { units: 'meters' })
     if (dist <= radiusMeters) parsed.push(meter)
   }
 
-  // If bounding box returned nothing, fetch all and filter client-side
+  // If nothing found, widen bbox 3x and try once more before giving up
   if (parsed.length === 0) {
-    const all = await fetchAllMeters()
-    return all.filter((m) => {
-      if (seenIds.has(m.space_id)) return false
-      const pt = turf.point([m.lng, m.lat])
-      const dist = turf.distance(center, pt, { units: 'meters' })
-      return dist <= radiusMeters
-    })
+    const wideLatDelta = latDelta * 3
+    const wideLngDelta = lngDelta * 3
+    try {
+      const wideResponse = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
+        headers: getHeaders(),
+        params: {
+          $limit: 200,
+          $where: `lat >= ${lat - wideLatDelta} AND lat <= ${lat + wideLatDelta} AND long >= ${lng - wideLngDelta} AND long <= ${lng + wideLngDelta}`,
+        },
+      })
+      for (const raw of wideResponse.data) {
+        const meter = mapRawToMeter(raw)
+        if (!meter || seenIds.has(meter.space_id)) continue
+        seenIds.add(meter.space_id)
+        parsed.push(meter)
+      }
+    } catch {
+      // Wide fallback also failed — return empty
+    }
   }
 
   return parsed
