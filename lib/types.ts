@@ -1,7 +1,7 @@
 export interface DayHours {
-  day: string   // e.g. "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
-  start: string // e.g. "08:00"
-  end: string   // e.g. "20:00"
+  day: string
+  start: string
+  end: string
 }
 
 export interface ParkingMeter {
@@ -33,9 +33,9 @@ export interface ParkingRecommendation {
   score: number
   is_safe: boolean
   risk_flags: string[]
+  enforced_hours_display: string
 }
 
-// Raw shape from LADOT / Socrata API
 export interface LadotMeterRaw {
   spaceid?: string
   blockface?: string
@@ -51,6 +51,5 @@ export interface LadotMeterRaw {
   streetblockid?: string
   areaid?: string
   area_description?: string
-  // Enforcement windows may appear as mon_am_start, mon_am_end, etc.
   [key: string]: string | undefined
 }
