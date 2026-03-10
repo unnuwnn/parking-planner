@@ -168,26 +168,58 @@ export async function fetchMetersByRadius(
   lng: number,
   radiusMeters: number
 ): Promise<ParkingMeter[]> {
-  // Socrata supports $within_circle for geo-filtered queries
-  const response = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
-    headers: getHeaders(),
-    params: {
-      $limit: PAGE_SIZE,
-      $where: `within_circle(location, ${lat}, ${lng}, ${radiusMeters})`,
-    },
-  })
+  // Convert radius to rough lat/lng bounding box for Socrata query
+  const latDelta = radiusMeters / 111320
+  const lngDelta = radiusMeters / (111320 * Math.cos((lat * Math.PI) / 180))
+  const minLat = lat - latDelta
+  const maxLat = lat + latDelta
+  const minLng = lng - lngDelta
+  const maxLng = lng + lngDelta
 
-  const parsed: ParkingMeter[] = []
-  for (const raw of response.data) {
-    const meter = mapRawToMeter(raw)
-    if (meter) parsed.push(meter)
+  // Try bounding box query using lat/long columns
+  let response
+  try {
+    response = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
+      headers: getHeaders(),
+      params: {
+        $limit: PAGE_SIZE,
+        $where: `lat >= '${minLat}' AND lat <= '${maxLat}' AND long >= '${minLng}' AND long <= '${maxLng}'`,
+      },
+    })
+  } catch {
+    // Try within_circle as secondary fallback
+    response = await axios.get<LadotMeterRaw[]>(SOCRATA_BASE_URL, {
+      headers: getHeaders(),
+      params: {
+        $limit: PAGE_SIZE,
+        $where: `within_circle(location, ${lat}, ${lng}, ${radiusMeters})`,
+      },
+    })
   }
 
-  // If the dataset doesn't have a location column, fall back to client-side filter
+  const parsed: ParkingMeter[] = []
+  const seenIds = new Set<string>()
+  const center = turf.point([lng, lat])
+
+  for (const raw of response.data) {
+    const meter = mapRawToMeter(raw)
+    if (!meter) continue
+
+    // Deduplicate by space_id
+    if (seenIds.has(meter.space_id)) continue
+    seenIds.add(meter.space_id)
+
+    // Client-side exact radius filter
+    const pt = turf.point([meter.lng, meter.lat])
+    const dist = turf.distance(center, pt, { units: 'meters' })
+    if (dist <= radiusMeters) parsed.push(meter)
+  }
+
+  // If bounding box returned nothing, fetch all and filter client-side
   if (parsed.length === 0) {
     const all = await fetchAllMeters()
-    const center = turf.point([lng, lat])
     return all.filter((m) => {
+      if (seenIds.has(m.space_id)) return false
       const pt = turf.point([m.lng, m.lat])
       const dist = turf.distance(center, pt, { units: 'meters' })
       return dist <= radiusMeters
