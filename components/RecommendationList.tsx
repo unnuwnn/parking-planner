@@ -25,6 +25,37 @@ function scoreToTextClass(score: number): string {
   return 'text-red-400'
 }
 
+/** Street-sign style badge showing time limit, rate, and enforced hours */
+function ParkingSignBadge({
+  timeLimitHours,
+  ratePerHour,
+  enforcedHoursDisplay,
+}: {
+  timeLimitHours: number
+  ratePerHour: number
+  enforcedHoursDisplay: string
+}) {
+  const timeLimitDisplay =
+    timeLimitHours < 1
+      ? `${Math.round(timeLimitHours * 60)} MIN`
+      : `${timeLimitHours} HR`
+
+  return (
+    <div className="flex items-stretch gap-0 rounded overflow-hidden border border-slate-600 shrink-0 text-center" style={{ minWidth: 64 }}>
+      {/* Blue P column */}
+      <div className="bg-blue-600 flex items-center justify-center px-2 py-1.5">
+        <span className="text-white font-black text-lg leading-none">P</span>
+      </div>
+      {/* Sign info */}
+      <div className="bg-slate-800 flex flex-col justify-center px-2 py-1 gap-0.5">
+        <span className="text-white font-bold text-xs leading-none">{timeLimitDisplay}</span>
+        <span className="text-green-400 font-semibold text-xs leading-none">${ratePerHour.toFixed(2)}/hr</span>
+        <span className="text-slate-400 text-[10px] leading-none whitespace-nowrap">{enforcedHoursDisplay}</span>
+      </div>
+    </div>
+  )
+}
+
 interface RecommendationListProps {
   recommendations: ParkingRecommendation[]
   selectedRec: ParkingRecommendation | null
@@ -45,11 +76,10 @@ export default function RecommendationList({
       {recommendations.map((rec, idx) => {
         const rank = idx + 1
         const isSelected = selectedRec?.meter.space_id === rec.meter.space_id
-        const walkMins = Math.round(rec.walk_distance_meters / 80)
 
         return (
           <button
-            key={rec.meter.space_id}
+            key={rec.meter.space_id || `rec-${idx}`}
             onClick={() => onSelect(rec)}
             onMouseEnter={() => onHover(rec)}
             onMouseLeave={() => onHover(null)}
@@ -74,10 +104,17 @@ export default function RecommendationList({
               </div>
 
               <div className="flex-1 min-w-0">
-                {/* Address */}
-                <p className="text-sm font-medium text-white truncate leading-tight">
-                  {rec.meter.street_address}
-                </p>
+                {/* Address + sign badge row */}
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium text-white truncate leading-tight">
+                    {rec.meter.street_address}
+                  </p>
+                  <ParkingSignBadge
+                    timeLimitHours={rec.meter.time_limit_hours}
+                    ratePerHour={rec.meter.rate_per_hour}
+                    enforcedHoursDisplay={rec.enforced_hours_display}
+                  />
+                </div>
 
                 {/* Stats row */}
                 <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
@@ -95,15 +132,9 @@ export default function RecommendationList({
                   </span>
                   <span className="flex items-center gap-1">
                     <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
-                    {rec.meter.time_limit_hours}h limit
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    ${rec.meter.rate_per_hour.toFixed(2)}/hr
+                    {rec.meter.meter_type}
                   </span>
                 </div>
 
